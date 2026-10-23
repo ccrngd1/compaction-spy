@@ -1,0 +1,19 @@
+# Orchestration notes and logs stay local
+.mastercontrol/
+.claude-session
+*.log
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+# Node
+node_modules/
+# Secrets, just in case
+.env
+.env.*
+*.pem
