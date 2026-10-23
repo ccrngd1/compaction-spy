@@ -25,6 +25,29 @@ class SnapshotError(Exception):
     pass
 
 
+def _octet_length(value: object) -> int | None:
+    """Python stand-in for SQLite's ``octet_length()`` (native since 3.43)."""
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return len(value)
+    return len(str(value).encode("utf-8"))
+
+
+def ensure_sql_functions(conn: sqlite3.Connection) -> None:
+    """Register functions that newer OpenClaw schemas use in CHECK constraints.
+
+    Live ``transcript_events`` has a CHECK that uses ``octet_length()``. Older
+    linked SQLite builds (e.g. 3.40) lack it, so ``PRAGMA integrity_check`` on
+    an exact copy fails with "unknown function". Registered only when the
+    native function is missing.
+    """
+    try:
+        conn.execute("select octet_length('a')").fetchone()
+    except sqlite3.OperationalError:
+        conn.create_function("octet_length", 1, _octet_length, deterministic=True)
+
+
 def agent_db_path(agent_id: str, state_root: Path | None = None) -> Path:
     root = state_root if state_root is not None else Path.home() / ".openclaw"
     return root / "agents" / agent_id / "agent" / "openclaw-agent.sqlite"
@@ -69,6 +92,7 @@ def take_snapshot(
         try:
             dst_conn = sqlite3.connect(partial)
             try:
+                ensure_sql_functions(dst_conn)
                 src_conn.backup(dst_conn)
                 row = dst_conn.execute("PRAGMA integrity_check").fetchone()
                 if not row or row[0] != "ok":

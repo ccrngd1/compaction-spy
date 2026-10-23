@@ -31,7 +31,7 @@ compaction-spy = "compaction_spy.cli:app"
 include = ["compaction_spy*"]
 
 [tool.pytest.ini_options]
-addopts = "-q --basetemp=.tmp/pytest"
+addopts = "-q --basetemp=.pytest-tmp"
 testpaths = ["tests"]
 
 [tool.ruff]

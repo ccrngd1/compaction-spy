@@ -219,6 +219,37 @@ def test_snapshot_refuses_to_under_protected_root(tmp_path: Path, monkeypatch: o
     assert "refusing to write" in result.output
 
 
+def test_snapshot_integrity_check_with_octet_length_check_constraint(tmp_path: Path) -> None:
+    # Live OpenClaw stores carry a CHECK using octet_length() (SQLite >= 3.43).
+    # The snapshot integrity_check must pass on older linked SQLite too.
+    import sqlite3
+
+    from compaction_spy.snapshot import _octet_length
+
+    src = tmp_path / "newer-schema.sqlite"
+    conn = sqlite3.connect(src)
+    conn.create_function("octet_length", 1, _octet_length, deterministic=True)
+    conn.execute("create table t (v text check (v is null or octet_length(v) <= 16))")
+    conn.execute("insert into t values ('fits')")
+    conn.commit()
+    conn.close()
+    dest = tmp_path / "dest"
+    result = runner.invoke(app, ["snapshot", "--source", str(src), "--to", str(dest)])
+    assert result.exit_code == 0, result.output
+    assert (dest / "newer-schema.sqlite").exists()
+    assert list(dest.glob("*.partial")) == []
+
+
+def test_octet_length_polyfill_semantics() -> None:
+    from compaction_spy.snapshot import _octet_length
+
+    assert _octet_length(None) is None
+    assert _octet_length("abc") == 3
+    assert _octet_length("\u00e9") == 2
+    assert _octet_length(b"\x00\x01") == 2
+    assert _octet_length(42) == 2
+
+
 def test_snapshot_malformed_source_leaves_no_partial(tmp_path: Path) -> None:
     bad = tmp_path / "bad.sqlite"
     bad.write_bytes(b"deliberately not sqlite")
