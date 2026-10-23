@@ -72,6 +72,10 @@ def cleanup_snapshot(snapshot: Path) -> bool:
     if not has_marker(snapshot):
         return False
     snapshot.unlink(missing_ok=True)
+    # A backup copy keeps the source's WAL journal mode, so reads leave
+    # -wal/-shm siblings. They belong to this snapshot; remove them too.
+    for suffix in ("-wal", "-shm", "-journal"):
+        snapshot.with_name(snapshot.name + suffix).unlink(missing_ok=True)
     marker_path(snapshot).unlink(missing_ok=True)
     return True
 
@@ -108,6 +112,7 @@ def take_snapshot(
         raise SnapshotError(
             f"snapshot of {source} failed (busy, locked or malformed): {ex}"
         ) from ex
+    os.chmod(partial, 0o600)
     partial.rename(final)
     write_marker(final, source)
     return final

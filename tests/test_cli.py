@@ -193,6 +193,20 @@ def test_audit_cleanup_deletes_only_marked_snapshots(tmp_path: Path) -> None:
     assert dbs["beta"].exists()  # unmarked user file -> kept
 
 
+def test_cleanup_removes_wal_shm_siblings_of_marked_snapshot(tmp_path: Path) -> None:
+    from compaction_spy.snapshot import cleanup_snapshot, write_marker
+
+    snap = tmp_path / "s.sqlite"
+    snap.write_bytes(b"x")
+    for suffix in ("-wal", "-shm"):
+        (tmp_path / ("s.sqlite" + suffix)).write_bytes(b"")
+    other = tmp_path / "unrelated.sqlite-wal"
+    other.write_bytes(b"")
+    write_marker(snap, Path("/synthetic/source.sqlite"))
+    assert cleanup_snapshot(snap)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["unrelated.sqlite-wal"]
+
+
 def test_snapshot_fixture_source_and_marker(tmp_path: Path) -> None:
     dbs = build_fixture_store(tmp_path / "src")
     dest = tmp_path / "private"
@@ -202,6 +216,7 @@ def test_snapshot_fixture_source_and_marker(tmp_path: Path) -> None:
     assert snap.exists()
     assert (dest / "alpha.sqlite.compaction-spy-snapshot.json").exists()
     assert oct(os.stat(dest).st_mode & 0o777) == oct(0o700)
+    assert oct(os.stat(snap).st_mode & 0o777) == oct(0o600)
 
 
 def test_snapshot_refuses_to_under_protected_root(tmp_path: Path, monkeypatch: object) -> None:
