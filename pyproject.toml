@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compaction-spy"
+version = "0.1.0"
+description = "Offline, read-only provenance auditor for OpenClaw compaction summaries"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "boto3==1.43.118",
+    "zstandard==0.25.0",
+    "rank-bm25==0.2.2",
+    "typer==0.27.3",
+    "rich==15.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.2",
+    "mypy==2.4.0",
+]
+
+[project.scripts]
+compaction-spy = "compaction_spy.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["compaction_spy*"]
+
+[tool.pytest.ini_options]
+addopts = "-q --basetemp=.tmp/pytest"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Judge prompts are ported verbatim from the working spikes; do not rewrap.
+"compaction_spy/judge.py" = ["E501"]
+"compaction_spy/memory_mode.py" = ["E501"]
+# typer.Option in defaults is the standard typer CLI idiom.
+"compaction_spy/cli.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["rank_bm25", "boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
