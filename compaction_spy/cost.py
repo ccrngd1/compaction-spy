@@ -1,10 +1,13 @@
 """Cost estimation and the hard --max-usd guard.
 
-Pre-run: estimate from character counts of all planned request payloads
-(chars/4 ≈ tokens, matching the spike's accounting) and abort before any call
-if the estimate exceeds the budget. Mid-run: track reported usage; before each
-call, abort if the running total plus a worst-case next call could exceed the
-budget. An abort exits non-zero and writes no report.
+Three checkpoints, all from character counts (chars/4 ≈ tokens, matching the
+spike's accounting). Stage-1 pre-run: estimate all retrieval requests and abort
+before any call if that alone exceeds the budget. Stage-2 pre-check: once the
+retrieval stage has decided which entries need full-context confirmation, the
+built full-context requests are estimated and checked against the budget minus
+actual spend so far, before any full-context call. Mid-run: track reported
+usage; before each call, abort if the running total plus a worst-case next call
+could exceed the budget. An abort exits non-zero and writes no report.
 """
 
 from __future__ import annotations
@@ -56,12 +59,26 @@ class CostGuard:
             return self._spent_usd
 
     def check_estimate(self, request_chars: list[int], max_output_tokens: int) -> float:
-        """Abort before any call if the whole plan exceeds the budget."""
+        """Stage-1: abort before any call if the retrieval stage exceeds the budget."""
         est = estimate_usd(request_chars, max_output_tokens, self.prices)
         if est > self.max_usd:
             raise CostAbort(
-                f"estimated cost ${est:.2f} exceeds --max-usd ${self.max_usd:.2f}; "
-                "no requests were made"
+                f"retrieval stage estimated cost ${est:.2f} exceeds "
+                f"--max-usd ${self.max_usd:.2f}; no requests were made"
+            )
+        return est
+
+    def check_stage2_estimate(self, request_chars: list[int], max_output_tokens: int) -> float:
+        """Stage-2: abort before any full-context call if spend so far plus the
+        full-context stage estimate exceeds the budget."""
+        est = estimate_usd(request_chars, max_output_tokens, self.prices)
+        with self._lock:
+            spent = self._spent_usd
+        if spent + est > self.max_usd:
+            raise CostAbort(
+                f"full-context stage estimated cost ${est:.2f} plus ${spent:.2f} "
+                f"already spent would exceed --max-usd ${self.max_usd:.2f}; "
+                "no full-context requests were made"
             )
         return est
 

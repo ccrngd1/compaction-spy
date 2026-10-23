@@ -93,7 +93,10 @@ def test_audit_passes_with_generous_budget(fixture_dbs: dict[str, Path], tmp_pat
     assert data["entries_judged"] > 0
     assert data["identifier_check"]["total"] == 2
     assert data["identifier_check"]["verbatim_found"] == 1
+    assert "stage2_estimated_usd" in data["cost"]
     assert oct(os.stat(out).st_mode & 0o777) == oct(0o700)
+    for name in ("report.md", "report.json"):
+        assert oct(os.stat(out / name).st_mode & 0o777) == oct(0o600)
 
 
 def test_audit_cost_abort_is_clean(fixture_dbs: dict[str, Path], tmp_path: Path) -> None:
@@ -134,6 +137,7 @@ def test_include_text_writes_private_file_only_in_out(
     assert result.exit_code == 0, result.output  # type: ignore[attr-defined]
     private = out / "entries.private.jsonl"
     assert private.exists()
+    assert oct(os.stat(private).st_mode & 0o777) == oct(0o600)
     content = private.read_text()
     assert "frobnicator" in content  # entry text IS in the private file
     assert STUB_RATIONALE_MARKER in content  # and rationales too

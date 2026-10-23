@@ -1,12 +1,15 @@
-"""B3: the three banned words never appear in templates, outputs, or the repo.
+"""B3: the banned word stems never appear in templates, outputs, or the repo.
 
-The words are assembled from fragments here so they never appear literally in
-the repo (the hygiene test enforces that too). Required wording instead:
-"no source found".
+Matching is case-insensitive on STEMS (so every inflection is caught, e.g. the
+-ion/-ing/-or forms), assembled from fragments here so they never appear
+literally in the repo (the hygiene test enforces that too). One word is matched
+whole rather than by stem: its bare four-letter stem would also match the
+harmless "inventory". Required wording instead: "no source found".
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -16,19 +19,27 @@ from compaction_spy import judge, memory_mode, report
 from compaction_spy.cli import app
 from tests.fixtures.build_fixture_db import build_fixture_store
 
-BANNED = [
-    "INVEN" + "TED",
-    "fabri" + "cated",
-    "halluci" + "nated",
+# Stems, matched case-insensitively anywhere in a word.
+BANNED_STEMS = [
+    "fabri" + "cat",
+    "halluci" + "nat",
 ]
+# Whole words only (the stem would match unrelated words like "inventory").
+BANNED_WORDS = [
+    "inven" + "ted",
+]
+# Shared with the hygiene test, which scans tracked files with the same stems.
+BANNED_RE = re.compile(
+    "|".join(BANNED_STEMS + [rf"\b{w}\b" for w in BANNED_WORDS]),
+    re.IGNORECASE,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 
 
 def _assert_clean(text: str, where: str) -> None:
-    low = text.lower()
-    for word in BANNED:
-        assert word.lower() not in low, f"banned word in {where}"
+    match = BANNED_RE.search(text)
+    assert match is None, f"banned stem {match.group(0)!r} in {where}"
 
 
 def test_prompts_and_label_constants_clean() -> None:

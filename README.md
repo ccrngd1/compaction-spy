@@ -128,13 +128,26 @@ entries — never stronger words.
 - Judge: Bedrock only, region `us-east-1`, model
   `global.anthropic.claude-sonnet-4-6`, ambient credentials. No account ids,
   ARNs or keys in code.
-- `--max-usd` is a hard ceiling. Before any call, the whole plan is estimated
-  from request character counts (chars/4 ≈ tokens, default $3/M input, $15/M
-  output — configurable via `--price-input`/`--price-output`); if the estimate
-  exceeds the budget, the run aborts before spending anything. Mid-run, the
-  running total from reported usage is checked before each call; a potential
-  overrun cancels pending calls and aborts. An abort exits non-zero with a
-  clear message and writes **no report files**.
+- `--max-usd` is a hard ceiling, enforced at three checkpoints. All estimates
+  use request character counts (chars/4 ≈ tokens, default $3/M input, $15/M
+  output — configurable via `--price-input`/`--price-output`) plus worst-case
+  output tokens per call.
+  - **Stage-1 pre-run estimate** covers the retrieval stage only (one request
+    per compaction — those prompts are all built up front); if it exceeds the
+    budget, the run aborts before spending anything. The full-context stage
+    cannot be estimated at this point because it depends on which entries the
+    retrieval judge flags.
+  - **Stage-2 pre-check:** after the retrieval stage finishes and before any
+    full-context call, all full-context prompts for the flagged entries are
+    built and estimated; if actual spend so far plus that estimate exceeds the
+    budget, the run aborts with no full-context requests made. `--no-fullctx`
+    skips the stage and the check.
+  - **Mid-run guard:** the running total from reported usage is checked before
+    each call; a potential overrun cancels pending calls and aborts.
+
+  Both stage estimates are recorded in the report's cost section. Any abort
+  exits non-zero with a clear message naming the stage and writes **no report
+  files**.
 - `--judge stub` is a deterministic offline judge for tests and demos. It makes
   no network calls and deliberately echoes entry text in its rationales so the
   privacy tests can prove rationales are stripped from default reports.

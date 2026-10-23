@@ -84,6 +84,34 @@ def test_midrun_abort_raises_cost_abort(fixture_dbs: dict[str, Path]) -> None:
         run_audit([fixture_dbs["alpha"]], judge, max_usd=1.0, guard=guard, no_fullctx=True)
 
 
+class ExpensiveRetrievalJudge(StubJudge):
+    """Stub judge whose retrieval calls report heavy usage, so the budget passes
+    the stage-1 estimate but fails the stage-2 pre-check."""
+
+    def judge(
+        self, system: str, user: str, n_entries: int, max_tokens: int = 8000
+    ) -> tuple[list[JudgeItem], JudgeUsage]:
+        items, _usage = super().judge(system, user, n_entries, max_tokens)
+        return items, JudgeUsage(input_tokens=200_000, output_tokens=0)  # $0.60 per call
+
+
+def test_stage2_estimate_abort_after_retrieval(fixture_dbs: dict[str, Path]) -> None:
+    # Stage-1 estimate for one compaction is ~$0.13 (passes $0.65); retrieval
+    # then spends $0.60, so $0.60 + the full-context estimate must abort before
+    # any full-context call.
+    with pytest.raises(CostAbort, match="full-context stage"):
+        run_audit([fixture_dbs["alpha"]], ExpensiveRetrievalJudge(), max_usd=0.65, limit=1)
+
+
+def test_no_fullctx_skips_stage2_precheck(fixture_dbs: dict[str, Path]) -> None:
+    result = run_audit(
+        [fixture_dbs["alpha"]], ExpensiveRetrievalJudge(), max_usd=0.65, limit=1, no_fullctx=True
+    )
+    assert result.stage2_estimated_usd == 0.0
+    data = build_report_data(result)
+    assert data["cost"]["stage2_estimated_usd"] == 0.0
+
+
 def test_stub_judge_end_to_end_mixes_labels(fixture_dbs: dict[str, Path]) -> None:
     result = run_audit([fixture_dbs["alpha"]], StubJudge(), max_usd=100)
     data = build_report_data(result)

@@ -10,9 +10,9 @@ Usage: ``python build_fixture_db.py <out_dir>`` or import ``build_fixture_store`
 
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -224,7 +224,9 @@ def build_fixture_store(out_dir: Path) -> dict[str, Path]:
 
 
 if __name__ == "__main__":
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("fixture-out")
-    built = build_fixture_store(target)
+    parser = argparse.ArgumentParser(description="Build the synthetic fixture SQLite stores.")
+    parser.add_argument("out_dir", type=Path, help="Directory to write the fixture stores into.")
+    args = parser.parse_args()
+    built = build_fixture_store(args.out_dir)
     for name, path in built.items():
         print(name, path)

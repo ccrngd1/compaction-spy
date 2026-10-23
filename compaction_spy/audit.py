@@ -3,8 +3,9 @@
 Order of operations is fixed by the thread-safety constraint: ALL events are
 loaded and zstd-decoded serially first (store.py enforces main-thread decode),
 then only the judge calls run in a thread pool. The cost guard aborts before
-any call if the pre-run estimate exceeds the budget, and mid-run (cancelling
-pending futures) if the next call could exceed it.
+any call if the stage-1 (retrieval) estimate exceeds the budget, again between
+stages if actual spend plus the stage-2 (full-context) estimate would exceed
+it, and mid-run (cancelling pending futures) if the next call could exceed it.
 """
 
 from __future__ import annotations
@@ -82,6 +83,7 @@ class AuditResult:
     unparsed_legacy: int = 0
     skipped_dbs: list[tuple[str, str]] = field(default_factory=list)
     estimated_usd: float = 0.0
+    stage2_estimated_usd: float = 0.0
     spent_usd: float = 0.0
     judge_errors: int = 0
 
@@ -195,6 +197,13 @@ def run_audit(
                 continue
             prompt = fc.build_fullctx_prompt(cr.case, flagged)
             fullctx_jobs.append((cr, flagged, prompt))
+
+        # Stage-2 pre-check: all full-context prompts are built; abort before
+        # any full-context call if spend so far + this stage's estimate exceeds
+        # the budget.
+        result.stage2_estimated_usd = guard.check_stage2_estimate(
+            [len(FULLCTX_SYSTEM) + len(p) for _cr, _fl, p in fullctx_jobs], MAX_TOKENS_FULLCTX
+        )
 
         def judge_fullctx(cr: CaseResult, flagged: list[tuple[int, Entry]], prompt: str) -> None:
             guard.check_before_call(len(FULLCTX_SYSTEM) + len(prompt), MAX_TOKENS_FULLCTX)

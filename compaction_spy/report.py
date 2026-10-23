@@ -95,6 +95,7 @@ def build_report_data(result: AuditResult) -> dict[str, Any]:
         },
         "cost": {
             "estimated_usd": round(result.estimated_usd, 4),
+            "stage2_estimated_usd": round(result.stage2_estimated_usd, 4),
             "spent_usd": round(result.spent_usd, 4),
         },
         "flagged_entry_refs": flagged_refs,
@@ -118,7 +119,9 @@ def render_markdown(data: dict[str, Any]) -> str:
         f"- Identifier check: {data['identifier_check']['verbatim_found']}"
         f"/{data['identifier_check']['total']} verbatim "
         f"({data['identifier_check']['rate_pct']}%)",
-        f"- Cost: estimated ${data['cost']['estimated_usd']}, spent ${data['cost']['spent_usd']}",
+        f"- Cost: retrieval stage estimated ${data['cost']['estimated_usd']}, "
+        f"full-context stage estimated ${data['cost']['stage2_estimated_usd']}, "
+        f"spent ${data['cost']['spent_usd']}",
         "",
         "## Labels",
         "",

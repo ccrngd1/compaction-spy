@@ -2,7 +2,7 @@
 
 No 12-digit account ids, no AWS key ids, no secret-looking assignments, no
 private-network addresses, no UUIDs, no absolute home-dir or protected-state
-paths, and none of the banned words. All literal patterns are assembled from
+paths, and none of the banned stems. All literal patterns are assembled from
 fragments (as in test_banned_words) so this file passes its own scan.
 """
 
@@ -12,7 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from tests.test_banned_words import BANNED
+from tests.test_banned_words import BANNED_RE
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -56,10 +56,8 @@ def test_tracked_content_is_clean() -> None:
         for name, pattern in PATTERNS:
             if pattern.search(content):
                 problems.append(f"{rel}: {name}")
-        low = content.lower()
-        for word in BANNED:
-            if word.lower() in low:
-                problems.append(f"{rel}: banned word")
+        if BANNED_RE.search(content):
+            problems.append(f"{rel}: banned stem")
     assert problems == [], "hygiene violations: " + "; ".join(problems)
 
 

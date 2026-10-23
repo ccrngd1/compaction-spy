@@ -31,6 +31,14 @@ def _fail(message: str, code: int = 1) -> None:
     raise typer.Exit(code=code)
 
 
+def _write_private(path: Path, text: str) -> None:
+    """Write a report file with mode 0600 (owner-only, like the 0700 out dir)."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(text)
+    os.chmod(path, 0o600)  # pre-existing files keep 0600 even past the umask
+
+
 def _make_judge(kind: str) -> JudgeClient:
     if kind == "stub":
         return StubJudge()
@@ -149,10 +157,10 @@ def audit_cmd(
     out_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(out_dir, 0o700)
     data = report.build_report_data(result)
-    (out_dir / "report.json").write_text(json.dumps(data, indent=1))
-    (out_dir / "report.md").write_text(report.render_markdown(data))
+    _write_private(out_dir / "report.json", json.dumps(data, indent=1))
+    _write_private(out_dir / "report.md", report.render_markdown(data))
     if include_text:
-        (out_dir / "entries.private.jsonl").write_text(report.private_entries_jsonl(result))
+        _write_private(out_dir / "entries.private.jsonl", report.private_entries_jsonl(result))
     console.print(
         f"audited {data['compactions_audited']} compactions, "
         f"{data['entries_judged']} entries; no source found: {data['non_sourced_pct']}%; "

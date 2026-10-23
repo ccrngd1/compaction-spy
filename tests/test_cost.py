@@ -25,6 +25,21 @@ def test_estimate_within_budget_passes() -> None:
     assert 0 < est < 10
 
 
+def test_stage2_estimate_abort_counts_spend_so_far() -> None:
+    guard = CostGuard(max_usd=1.0)
+    guard.record_usage(input_tokens=300_000, output_tokens=0)  # $0.90 spent in stage 1
+    # $0.15 more would exceed; stage 1 alone would have passed this plan.
+    with pytest.raises(CostAbort, match="full-context stage"):
+        guard.check_stage2_estimate([40_000], max_output_tokens=8000)
+
+
+def test_stage2_estimate_within_remaining_budget_passes() -> None:
+    guard = CostGuard(max_usd=1.0)
+    guard.record_usage(input_tokens=100_000, output_tokens=0)  # $0.30 spent
+    est = guard.check_stage2_estimate([4_000], max_output_tokens=100)
+    assert 0 < est < 0.7
+
+
 def test_midrun_abort_when_next_call_could_exceed() -> None:
     guard = CostGuard(max_usd=0.50)
     guard.record_usage(input_tokens=100_000, output_tokens=10_000)  # $0.45 spent
